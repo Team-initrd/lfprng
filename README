@@ -1,0 +1,92 @@
+=====CS3210 Project=====
+
+
+Description:
+There are a number of applications for which access to quality random numbers is very important.  There is an entire area of theory and algorithms around randomized algorithms for solving NP problems -- or even for finding solutions to problems in P in a statistically faster way.  Random numbers are also very important for things like cryptography -- so much so that some vendors are deploying crytographically secure random number generators directly into the hardware itself. (Bull Mountain is the name of Intel's design.  A write-up was in IEEE spectrum.)
+
+ 
+
+ 
+Given this need, a useful service that an operating system can provide is a set of interfaces for codes to generate random (or pseudorandom) numbers easily.  The one that you have most likely used before is either rand() or random(), which calls a user-space library function to generate a pseudorandom number sequence.  You seed them with an initial number, and then all subsequent calls generate a new number using the stored state from the previous call.
+ 
+Note that, because of this stored state, these are not thread-safe random number generators.  There are thread-safe versions available that you can use, but there is a secondary issue.  If you have a program with a single thread doing a computation with a pseudorandom number stream (like that from rand()), you will get a different result than if you had two threads calling two independently seeded, thread-safe random number stream.  This is where the LeapFrog method comes in, but first a bit of background on pseudorandom numbers.
+ 
+One standard type of random number generator is based on a simple number-theoretic equation:
+f|n = (a*f|(n-1) + b)%c
+ 
+If you choose suitable values for a, b, and c, and then you get a pseudorandom stream of integers that will uniformly cover the interval [0,c). Here, f|n is the nth pseudorandom number in your stream, where f|0 was your seed.  If you need a number in [0,1), then you just divide by c.
+ 
+Going to an external reference for reasonable values (http://random.mat.sbg.ac.at/software), we find out that reasonable values would be as follows:
+a = 764261123;
+b = 0;
+c  = 2147483647;  /* = 2^31 -1 */
+ 
+Because you need to store the old state in a static value, this is particular function is not thread friendly.  The LeapFrog approach to making the Pseudorandom Number Generator (PRNG) more thread friendly is to guarantee that if you have, say, two threads calling the lfrng() function call, you will get the same set of random number as you would have if you were calling it in a single thread.
+ 
+In particular, assuming again that you seed with f|0 in both threads, for a single thread, you would have the sequence of pseudorandom numbers
+  seed f|0:  f|1, f|2, f|3, f|4, f|5, f|6, f|7...
+ 
+while the 2 thread case you have
+ 
+  seed f|0:  f|1, f|3, f|5, f|7, f|9, ...
+  seed f|0:  f|2, f|4, f|6, f|8, f|10, ...
+ 
+This works by doing two things.  First, you need to store a separate seed for each thread inside the PRNG.  Second, you need to change the value of a such that it is a^2, rather than just a (or in general a^n if you have n threads).  (Taking b=0 makes this particular step easier -- you can make a better PRNG by using the non-zero value of b, but the new b will be more complicated.)
+ 
+If you are going to do this in userspace, you have to assume that you somehow pass in how many threads are participating by, for example, assuming that all threads are being spawned by OpenMP and are created before lfrng() is initialized.
+ 
+Your assignment is to create a more portable lfrng() implementation that will be implemented within the kernel.  By being inside the kernel, you can determine automatically how many threads are involved in the algorithm without depending on a particular threading library.  
+ 
+Interface:
+ 
+In order to simplify the interface, implement this through the /proc pseudo-filesystem as a /proc/lfprng file.  Thus the lfprng() function call will look something like the following:
+ 
+float lfrng() {
+      float val;
+      FILE* LF = fopen("/proc/lfprng","r");
+      fscanf(LF,"%f",val);
+      fclose(LF);
+      return val;
+}
+ 
+The /proc/lfprng pseudofile will need to be readable (as above) and writeable for seed initialization.  It should also cleanly handle situations where a read occurs from a process that did not initially do a write, as well as multiple concurrent processes receiving individual streams of data.
+ 
+Implementation:
+ 
+You will modify the kernel using the procfs hooks in order to implement the functionality described above.  You will need to implement the kernel-internal memory management for all needed state, determine the number of threads associated with a particular reading or writing process, and implement the actual LeapFrog algorithm. 
+ 
+Evaluation:
+ 
+A reference code will be provided that uses a thread-safe PRNG with a variable number of threads.  A sample code to test the validity of the solution (ie verify that the stream of pseudorandom numbers is partitioned among the threads) will also be available.  A key grading criterion will be correctness of the solution with respect to the design requirements laid out above.
+ 
+Using the userspace codes, measure the performance of your solution in comparison to the userspace PRNG.  
+ 
+After completing your implementations, prepare a 10 minute presentation of the merits of your solutions, and write-up 1-2 page report describing the timing/performance implications of the approach as well as any issues with correctness for the design.  The demo presentation will be scheduled following the turn-in of the project code and write-up.  
+ 
+The turned in material should include the report and a separate tarball with only the kernel files that you modified and any userspace libraries or codes.
+ 
+Exceeding the minimum design requirements listed here is highly encouraged.  Possible additional areas to explore are improving the quality of the solution (choosing b!=0), using a character device driver (like that behind /dev/random) instead of using procfs, utilizing the entropy pool from /dev/random to handle the case where a seed has not been initially written, or adapting the streams so that pairs of numbers are kept together in the leapfrog.  i.e. w/two threads
+  seed f|0:   f|1, f|2, f|5, f|6, f|9, f|10, ...
+  seed f|0:   f|3, f|4, f|7, f|8, f|11, f|12, ...
+ 
+ 
+ 
+
+Additional Information:
+Some hints to integrating with /proc file system
+
+ 
+
+You can use -
+
+struct proc_dir_entry *create_proc_entry( const char *name, mode_t mode, struct proc_dir_entry *parent ); --- to create virtual file in /proc file system.
+void remove_proc_entry( const char *name, struct proc_dir_entry *parent );
+ --- to remove virtual file in /proc file system.
+You can write to a /proc entry (from the user to the kernel) by using a write_proc function.
+You can read data from a /proc entry (from the kernel to the user) by using the read_proc function.
+Copy buffer to kernel-space from user-space
+unsigned long copy_from_user( void *to, const void __user *from, unsigned long n);
+Allocate a 'virtually' contiguous block of memory
+void *vmalloc( unsigned long size );
+Free a vmalloc'd block of memory
+void vfree( void *addr );
