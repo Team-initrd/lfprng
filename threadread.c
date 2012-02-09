@@ -59,7 +59,7 @@ int main(int argc, char *argv[])
 		return 1;
 	}
 	printf("parent: writing file\n");
-	fprintf(fp, "wtf");
+	fprintf(fp, "42");
 	fclose(fp);
 	
 	if (!(fp = fopen(FILE_PATH, "r")))
