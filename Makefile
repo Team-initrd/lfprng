@@ -12,3 +12,7 @@ clean:
 lfprng.o : lfprng.c
 	make -C /lib/modules/$(KVERSION)/build M=$(shell pwd) modules
 
+load : lfprng.o
+	-/sbin/rmmod lfprng
+	/sbin/insmod lfprng.ko
+
