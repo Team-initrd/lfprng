@@ -57,17 +57,17 @@ static struct lf_process* find_process(int pid) {
 }
 
 static struct lf_thread* find_thread(struct lf_process* process, int tid) {
-  struct lf_thread* ret = NULL;
+  //struct lf_thread* ret = NULL;
   int i;
   for (i = 0; i < process->num_threads; i++) {
     if (process->threads[i]-> tid == tid) {
-      ret = process->threads[i];
+      return process->threads[i];
     }
   }
-  return ret;
+  return NULL;
 }
 
-static unsigned long long offset_luu(unsigned long long n, off_t off) {
+/*static unsigned long long offset_luu(unsigned long long n, off_t off) {
   int mod = 1;
   int i = n;
   int num_digits = 0;
@@ -82,8 +82,43 @@ static unsigned long long offset_luu(unsigned long long n, off_t off) {
   }
   return n % mod;
   //for (i = 0; i < off; i
-}
+}*/
 
+static void seed(unsigned long long iseed, double random_low, double random_hi, int count_parent) {
+    int num_threads = 0;
+    struct lf_process *new_process;
+    struct list_head *pos, *siblings;
+    
+    new_process = vmalloc(sizeof(struct lf_process));
+    
+    siblings = &(current->thread_group);//&current->sibling; // maybe use current->sibling
+    list_for_each(pos, siblings) {
+        num_threads++;
+    }
+    new_process->threads = vmalloc(num_threads * sizeof(struct lf_thread *));
+    new_process->num_threads = num_threads;
+    new_process->pid = current->tgid;
+    
+    n = 0;
+    pos = NULL;
+    new_process->mult_n = MULTIPLIER;
+    //iseed = 0;
+    list_for_each(pos, siblings) {
+        struct lf_thread *new_thread = vmalloc(sizeof(struct lf_thread));
+        struct task_struct *thread = list_entry(pos, struct task_struct, thread_group);
+        if (n != 0) {
+            iseed = (unsigned long long)((MULTIPLIER * iseed) % PMOD);
+        }
+        new_process->mult_n = (new_process->mult_n * MULTIPLIER) % PMOD;
+        new_thread->tid = thread->pid;
+        new_thread->random_last = iseed;
+        (new_process->threads)[n] = new_thread;
+        n++;
+        printk("Adding thread tid %d seed:%llu iseed:%llu\n", new_thread->tid, new_thread->random_last, iseed);
+    }
+    
+    add_process(new_process);
+}
 
 static int proc_read_lfprng(char *page, char **start,
                             off_t off, int count,
@@ -96,10 +131,10 @@ static int proc_read_lfprng(char *page, char **start,
   char temp_string[1000];
 
   printk(KERN_INFO "reading pid:%d tid:%d\n", current->tgid, current->pid);
-  if (data == NULL) {
+  /*if (data == NULL) {
     strcpy(page,"null\n");
     return strlen("null\n") + 1;
-  }
+  }*/
   //strcpy(page, data);
   *eof = 1;
   //len = strlen(data) + 1;
@@ -122,20 +157,24 @@ static int proc_read_lfprng(char *page, char **start,
   return len;
 }
 
+
+
+
 static int proc_write_lfprng(struct file *file,
                              const char *buffer,
                              unsigned long count,
                              void *data)
 {
   int len;
-  int num_threads;
+  //int num_threads;
   int n;
   unsigned long long iseed = 0;
-  struct lf_process *new_process;
-  struct list_head *pos, *siblings;
+  double random_low, random_hi;
+  //struct lf_process *new_process;
+  //struct list_head *pos, *siblings;
   char temp[1000];
   int count_parent = 0;
-  new_process = vmalloc(sizeof(new_process));
+  //new_process = vmalloc(sizeof(new_process));
   printk(KERN_INFO "writing\n");
   len = count;
   if (len > 999) len = 999;
@@ -145,50 +184,12 @@ static int proc_write_lfprng(struct file *file,
 
   ((char*)temp)[len] = '\0'; 
   
-  sscanf((const char*)temp, "%llu %f %f %d", &iseed, &new_process->random_low, &new_process->random_hi, &count_parent);
+  sscanf((const char*)temp, "%llu %f %f %d", &iseed, &random_low, &random_hi, &count_parent);
   printk("read iseed: %llu\n", iseed); 
-  num_threads = 0; //current->group_leader->signal->nr_threads; //get_nr_threads(current->group_leader);
+  //num_threads = 0; //current->group_leader->signal->nr_threads; //get_nr_threads(current->group_leader);
   
-  siblings = &(current->thread_group);//&current->sibling; // maybe use current->sibling
-  list_for_each(pos, siblings) {
-    num_threads++;
-  }
-  new_process->threads = vmalloc(num_threads * sizeof(struct lf_thread *));
-  new_process->num_threads = num_threads;
-  new_process->pid = current->tgid;
-
-  n = 0;
-  pos = NULL;
-  new_process->mult_n = MULTIPLIER;
-  //iseed = 0;
-  list_for_each(pos, siblings) {
-    struct lf_thread *new_thread = vmalloc(sizeof(struct lf_thread));
-    struct task_struct *thread = list_entry(pos, struct task_struct, thread_group);
-    if (n != 0) {
-      iseed = (unsigned long long)((MULTIPLIER * iseed) % PMOD);
-    }
-    new_process->mult_n = (new_process->mult_n * MULTIPLIER) % PMOD;
-    new_thread->tid = thread->pid;
-    new_thread->random_last = iseed;
-    (new_process->threads)[n] = new_thread;
-    n++;
-    printk("Adding thread tid %d seed:%llu iseed:%llu\n", new_thread->tid, new_thread->random_last, iseed);
-  }
+  seed(iseed, random_low, random_hi, count_parent);
   
-  add_process(new_process);
-
-  /*if (count >= 1000)
-    len = 999;
-  else
-    len = count;
-
-  if (copy_from_user(data, buffer, len))
-    return -EFAULT;
-
-  ((char*)data)[len] = '\0'; */
-
-  
-
   return len;
 }
 
@@ -199,13 +200,13 @@ static int __init lfprng_start(void)
   //head = vmalloc(sizeof(struct lf_process));
   head = NULL;
 
-  strcpy(mydata, "just initialized\n");
+  //strcpy(mydata, "just initialized\n");
 
   printk(KERN_INFO "%s\n", mydata);
 
   lfprng_file = create_proc_entry("lfprng", 0666, NULL);
   
-  lfprng_file->data = &mydata;
+  //lfprng_file->data = &mydata;
   lfprng_file->read_proc = proc_read_lfprng;
   lfprng_file->write_proc = proc_write_lfprng;
   lfprng_file->owner = THIS_MODULE;
