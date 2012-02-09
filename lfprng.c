@@ -88,6 +88,7 @@ static void seed(unsigned long long iseed, double random_low, double random_hi, 
     int num_threads = 0;
     struct lf_process *new_process;
     struct list_head *pos, *siblings;
+    int n;
     
     new_process = vmalloc(sizeof(struct lf_process));
     
@@ -149,8 +150,8 @@ static int proc_read_lfprng(char *page, char **start,
         return 0;
     if (off == 0)
         thread->random_last = (unsigned long long)((process->mult_n * thread->random_last) % PMOD);
-    double double_val = (double)(thread->random_last);
-    printk("tid: %d -outputting: llu:%llu d:%f\n", current->pid, thread->random_last, double_val);
+    //double double_val = (double)(thread->random_last);
+    printk("tid: %d -outputting: llu:%llu d:%f\n", current->pid, thread->random_last, (double)(thread->random_last));
     //len = sprintf(temp_string, "module prints %llu", thread->random_last
     len = sprintf(page, "module prints %llu", thread->random_last);
     
@@ -167,7 +168,7 @@ static int proc_write_lfprng(struct file *file,
 {
     int len;
     //int num_threads;
-    int n;
+    //int n;
     unsigned long long iseed = 0;
     double random_low, random_hi;
     //struct lf_process *new_process;
@@ -184,7 +185,7 @@ static int proc_write_lfprng(struct file *file,
     
     ((char*)temp)[len] = '\0'; 
     
-    sscanf((const char*)temp, "%llu %f %f %d", &iseed, &random_low, &random_hi, &count_parent);
+    sscanf((const char*)temp, "%llu %lf %lf %d", &iseed, &random_low, &random_hi, &count_parent);
     printk("read iseed: %llu\n", iseed); 
     //num_threads = 0; //current->group_leader->signal->nr_threads; //get_nr_threads(current->group_leader);
     
