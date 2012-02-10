@@ -4,10 +4,14 @@
 #include <linux/proc_fs.h>
 #include <linux/sched.h>
 #include <linux/vmalloc.h>
+#include <linux/random.h>
 #include <asm/uaccess.h>
 
 #define MODULE_VERS "1.0"
 #define MODULE_NAME "lfprng"
+#define DEFAULT_RAND_LO 0.0
+#define DEFAULT_RAND_HI 1.0
+#define DEFAULT_COUNT_PARENT 1
 
 static unsigned long long MULTIPLIER = 764261123;
 static unsigned long long PMOD = 2147483647;
@@ -145,15 +149,23 @@ static int proc_read_lfprng(char *page, char **start,
      len = sprintf(page, "didn't work");
      */
     process = find_process(current->tgid);
+    if (process == NULL)
+    {
+	unsigned long long seeed;
+        get_random_bytes((void *)(&seeed), sizeof(unsigned long long));
+        printk("seeed: %llu\n", seeed); 
+        seed(seeed, DEFAULT_RAND_LO, DEFAULT_RAND_HI, DEFAULT_COUNT_PARENT);
+        process = find_process(current->tgid);
+    }
     thread = find_thread(process, current->pid);
-    if (process == NULL || thread == NULL)
-        return 0;
+    if (thread == NULL)
+    {   len = sprintf(page, "LOL"); return len;}
     if (off == 0)
         thread->random_last = (unsigned long long)((process->mult_n * thread->random_last) % PMOD);
     //double double_val = (double)(thread->random_last);
     printk("tid: %d -outputting: llu:%llu d:%f\n", current->pid, thread->random_last, (double)(thread->random_last));
     //len = sprintf(temp_string, "module prints %llu", thread->random_last
-    len = sprintf(page, "module prints %llu", thread->random_last);
+    len = sprintf(page, "%llu", thread->random_last);
     
     return len;
 }
@@ -203,7 +215,7 @@ static int __init lfprng_start(void)
     
     //strcpy(mydata, "just initialized\n");
     
-    printk(KERN_INFO "%s\n", mydata);
+    //printk(KERN_INFO "%s\n", mydata);
     
     lfprng_file = create_proc_entry("lfprng", 0666, NULL);
     
@@ -224,4 +236,4 @@ module_init(lfprng_start);
 module_exit(lfprng_end);
 
 MODULE_DESCRIPTION("LeapFrog Psuedorandom Number Generator");
-
+MODULE_LICENSE("GPL");

@@ -132,10 +132,10 @@ int main(int argc, char **argv) {
   
   setseed=myseed;
   //seed(setseed, 0.0, 1.1);
-  fp = fopen(FILE_PATH, "w");
-  fprintf(fp, "%d 0.0 1.1 1", setseed);
+//  fp = fopen(FILE_PATH, "w");
+//  fprintf(fp, "%d 0.0 1.1 1", setseed);
   //printf("%d 0.0 1.1 1\n", setseed);
-  fclose(fp);
+//  fclose(fp);
   
   for (i=0; i<120; i++) {
     fp = fopen(FILE_PATH, "r");
@@ -143,9 +143,9 @@ int main(int argc, char **argv) {
     fclose(fp);
     
     baseref[i] = myrand; //myrandom();
-    //printf("%f\n", myrand);
+    printf("%f\n", myrand);
   }
-
+/*
   for (j=0; j<6; j++) {
     int numthreads = tests[j];
     double sum;
@@ -167,12 +167,12 @@ int main(int argc, char **argv) {
         fscanf(fp, "%f", &myrand);
         fclose(fp);
         
-	sum += abs(/*myrandom()*/myrand - baseref[i]);
+	//sum += abs(myrand - baseref[i]);
+	sum += abs(myrand - baseref[i]);
       }
     }    
     printf(" Diff for %i threads is %f.\n", numthreads, sum);
     
-  }
-  
+  }*/
   printf("\n");
 }
