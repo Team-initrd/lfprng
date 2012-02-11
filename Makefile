@@ -1,7 +1,7 @@
 obj-m = lfprng.o
 KVERSION = $(shell uname -r)
 
-all: lfprng.o load threadread tester
+all: lfprng.o threadread tester
 #        make -C /lib/modules/$(KVERSION)/build M=$(PWD) modules
 
 .PHONY: clean load all

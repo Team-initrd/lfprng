@@ -114,7 +114,7 @@ static void seed(unsigned long long iseed, double random_low, double random_hi, 
     // begin greg
     if (count_parent)
     {
-	struct lf_thread *new_thread = vmalloc(sizeof(struct lf_thread));
+        struct lf_thread *new_thread = vmalloc(sizeof(struct lf_thread));
         new_process->mult_n = (new_process->mult_n * MULTIPLIER) % PMOD;
         new_thread->tid = new_process->pid;
         new_thread->random_last = iseed;
