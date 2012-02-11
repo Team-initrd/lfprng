@@ -47,7 +47,7 @@ static void add_process(struct lf_process *new_process) {
     head = new_process;
     
     for (i = 0; i < new_process->num_threads; i++) {
-        printk("2 - Adding thread tid %d`\n", new_process->threads[i]->tid);
+        printk("2 - Adding thread tid:%d\n", new_process->threads[i]->tid);
     }
     mutex_unlock(&process_mutex);
 }
@@ -100,6 +100,9 @@ static void seed(unsigned long long iseed, double random_low, double random_hi, 
     list_for_each(pos, siblings) {
         num_threads++;
     }
+    // begin greg
+    if (count_parent) {num_threads++;}
+    // end greg
     new_process->threads = vmalloc(num_threads * sizeof(struct lf_thread *));
     new_process->num_threads = num_threads;
     new_process->pid = current->tgid;
@@ -108,6 +111,18 @@ static void seed(unsigned long long iseed, double random_low, double random_hi, 
     pos = NULL;
     new_process->mult_n = MULTIPLIER;
     //iseed = 0;
+    // begin greg
+    if (count_parent)
+    {
+	struct lf_thread *new_thread = vmalloc(sizeof(struct lf_thread));
+        new_process->mult_n = (new_process->mult_n * MULTIPLIER) % PMOD;
+        new_thread->tid = new_process->pid;
+        new_thread->random_last = iseed;
+        (new_process->threads)[n] = new_thread;
+        n++;
+        printk("Adding (parent) thread tid:%d seed:%llu iseed:%llu\n", new_thread->tid, new_thread->random_last, iseed);
+    }
+    // end greg
     list_for_each(pos, siblings) {
         struct lf_thread *new_thread = vmalloc(sizeof(struct lf_thread));
         struct task_struct *thread = list_entry(pos, struct task_struct, thread_group);
@@ -119,7 +134,7 @@ static void seed(unsigned long long iseed, double random_low, double random_hi, 
         new_thread->random_last = iseed;
         (new_process->threads)[n] = new_thread;
         n++;
-        printk("Adding thread tid %d seed:%llu iseed:%llu\n", new_thread->tid, new_thread->random_last, iseed);
+        printk("Adding thread tid:%d seed:%llu iseed:%llu\n", new_thread->tid, new_thread->random_last, iseed);
     }
     
     add_process(new_process);
@@ -151,15 +166,15 @@ static int proc_read_lfprng(char *page, char **start,
     process = find_process(current->tgid);
     if (process == NULL)
     {
-	unsigned long long seeed;
+        unsigned long long seeed;
         get_random_bytes((void *)(&seeed), sizeof(unsigned long long));
-        printk("seeed: %llu\n", seeed); 
+        printk("no seed given; seed generated: %llu\n", seeed); 
         seed(seeed, DEFAULT_RAND_LO, DEFAULT_RAND_HI, DEFAULT_COUNT_PARENT);
         process = find_process(current->tgid);
     }
     thread = find_thread(process, current->pid);
     if (thread == NULL)
-    {   len = sprintf(page, "LOL"); return len;}
+        return 0;
     if (off == 0)
         thread->random_last = (unsigned long long)((process->mult_n * thread->random_last) % PMOD);
     //double double_val = (double)(thread->random_last);
@@ -169,9 +184,6 @@ static int proc_read_lfprng(char *page, char **start,
     
     return len;
 }
-
-
-
 
 static int proc_write_lfprng(struct file *file,
                              const char *buffer,
