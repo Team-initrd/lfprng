@@ -118,6 +118,12 @@ void seed(unsigned long long iseed, double low_in, double hi_in)
   random_last = (unsigned long long) pseed[id][0];
 }
 
+
+double bound(unsigned long long num, double min, double max) {
+    return ((double)num/(double)PMOD)*(max-min)+min;
+}
+
+
 /*  This ends the reference openMP implementation.  The following is the core testing loop. */
 
 int tests[6]={2,3,4,5,6,10};
@@ -148,7 +154,7 @@ int main(int argc, char **argv) {
 
   for (j=0; j<6; j++) {
     int numthreads = tests[j];
-    double sum;
+    unsigned long long sum;
 
     omp_set_num_threads(numthreads);
     sum = 0;
@@ -170,7 +176,7 @@ int main(int argc, char **argv) {
     {
       printf("NUM THREADS: %d\n", omp_get_num_threads());
       setseed=myseed;
-      #pragma omp barrier
+      //#pragma omp barrier
       //seed(setseed,0.0,1.0);
       //#pragma omp single
       if (0 && omp_get_thread_num() == numthreads - 2)
@@ -180,17 +186,19 @@ int main(int argc, char **argv) {
         fclose(fp);
       }
       #pragma omp barrier
-#pragma omp for
+#pragma omp for ordered
       for (i=0; i<120; i++) {
+          //unsigned long long myrand;
         fp = fopen(FILE_PATH, "r");
         fscanf(fp, "%llu", &myrand);
         fclose(fp);
-        
-	//sum += abs(myrand - baseref[i]);
+    
+    printf("i = %d = myrand: %llu ref: %llu\n", i, myrand, baseref[i]);
 	sum += abs(myrand - baseref[i]);
+	//sum += myrand - baseref[i];
       }
     }    
-    printf(" Diff for %i threads is %llu.\n", numthreads, sum);
+    printf(" Diff for %i threads is %llu\n", numthreads, sum);
 
   }
   printf("\n");

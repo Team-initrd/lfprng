@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <pthread.h>
 
-#define NUM_THREADS 10
+#define NUM_THREADS 100
 #define FILE_PATH "/proc/lfprng"
 #define BUF_SIZE 128
 
@@ -33,18 +33,22 @@ void *thread_func(void *ptr)
 	
     for (i = id; i < 120; i+=total_threads) {
         fp = fopen(FILE_PATH, "r");
-        fscanf(fp, "%llu", &x);
+        fscanf(fp, "%lu", &x);
         results[i] = x;
+#ifdef DEBUG
         printf("thread: %ld : %llu\n", i, x);
+#endif
         fclose(fp);
     }
     
     //fclose(fp);
 	
 	//buf[i] = '\0';
-	printf("thread %d: %s\n", id, &buf);
+	//printf("thread %d: %s\n", id, &buf);
 	
 	pthread_mutex_unlock(&mutex_read);
+    pthread_exit(NULL);
+    
 }
 
 int main(int argc, char *argv[])
@@ -56,30 +60,40 @@ int main(int argc, char *argv[])
 	char buf[BUF_SIZE];
 	int n;
     unsigned long long seed = 12345;
+    int tests[6]={2,3,4,5,6,10};
+    int m;
+    int num_threads;
+    int error = 0;
 
 // seed
     fp = fopen(FILE_PATH, "w");
     fprintf(fp, "12345 1", seed);
     fclose(fp);
 
-    printf("REFERENCE\n");
+    printf("CALCULATING REFERENCE VALUES\n");
     //fp = fopen(FILE_PATH, "r");
     for (n = 0; n < 120; n++) {
         fp = fopen(FILE_PATH, "r");
         fscanf(fp, "%llu", &(ref[n]));
         
         //fscanf(fp, "%s", buf);
+#ifdef DEBUG
         printf("ref %d: %llu\n", n, ref[n]);
+#endif
         fclose(fp);
     }
     //fclose(fp);
-
+    for (m = 0; m < 6; m++) {
+        error = 0;
 	pthread_mutex_init(&mutex_read, NULL);
 	pthread_cond_init(&cond_read, NULL);
 	pthread_attr_init(&attr);
 	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
 	
-    total_threads = 10;
+    //for (m = 0; m < 6; m++) {
+        total_threads = tests[m];
+        printf("TESTING WITH NUM THREADS: %d\n", total_threads);
+    //total_threads = NUM_THREADS;
 
 	for (i = 0; i < total_threads; i++)
 	{
@@ -120,20 +134,37 @@ int main(int argc, char *argv[])
 
 	pthread_cond_broadcast(&cond_read);
 	
-	for (i = 0; i < NUM_THREADS; i++)
+	for (i = 0; i < total_threads; i++)
 	{
 		pthread_join(thread[i], NULL);
 	}
 	
-	pthread_attr_destroy(&attr);
+	/*pthread_attr_destroy(&attr);
 	pthread_mutex_destroy(&mutex_read);
 	pthread_cond_destroy(&cond_read);
 	pthread_exit(NULL);	
+*/
 
-
-    for (i = 0; i < 120; i++) {
-        printf("n: %d ref: %llu result: %llu", i, ref[i], results[i]);
+    printf("TESTING VALUES FOR THREADS: %d\n", total_threads);
+    for (i = 0; i < 120; ++i) {
+        if (ref[i] != results[i])
+            error = i;
+#ifdef DEBUG
+        printf("n: %d ref: %llu result: %llu\n", i, ref[i], results[i]);
+#endif
     }
 
+    if (error)
+        printf("There was an error with thread_num: %d, error index: %d\n", total_threads, error);
+    else
+        printf("NO ERROR with num threads: %d\n", total_threads);
+    printf("=====================\n");
+
+    
+    pthread_attr_destroy(&attr);
+    pthread_mutex_destroy(&mutex_read);
+    pthread_cond_destroy(&cond_read);
+    }
+    pthread_exit(NULL);
 	return 0;
 }

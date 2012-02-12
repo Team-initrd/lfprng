@@ -1,14 +1,14 @@
 obj-m = lfprng.o
 KVERSION = $(shell uname -r)
 
-all: lfprng.o threadread tester
+all: lfprng.o threadread tester pthreadtest
 #        make -C /lib/modules/$(KVERSION)/build M=$(PWD) modules
 
 .PHONY: clean load all
 
 clean:
 	make -C /lib/modules/$(KVERSION)/build M=$(shell pwd) clean
-	-rm threadread tester
+	-rm threadread tester pthreadtest
 
 lfprng.o : lfprng.c
 	make -C /lib/modules/$(KVERSION)/build M=$(shell pwd) modules
