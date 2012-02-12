@@ -18,9 +18,6 @@ static unsigned long long PMOD = 2147483647;
 
 static struct proc_dir_entry *lfprng_file;
 
-static char mydata[1000];
-
-
 // data structure stuff
 struct lf_thread {
     int tid;
@@ -42,13 +39,13 @@ DEFINE_MUTEX(process_mutex);
 
 static struct lf_process* remove_process(int pid) {
     struct lf_process *prev = head;
-    struct lf_process *remove;
+    struct lf_process *remove = NULL;
 
     if (head != NULL && head->pid == pid) {
         head = head->next;
         return prev;
     }
-    while( prev != NULL && prev->next != NULL && prev->next->pid != pid) {
+    while(prev != NULL && prev->next != NULL && prev->next->pid != pid) {
         prev = prev->next;
     }
     if (prev != NULL && prev->next != NULL) {
@@ -59,10 +56,53 @@ static struct lf_process* remove_process(int pid) {
     return remove;
 }
 
+static void free_process(struct lf_process *delete) {
+    int i;
+    
+    if (!delete) {
+        return;
+    }
+    
+    for (i = 0; i < delete->num_threads; i++) {
+        vfree(delete->threads[i]);
+    }
+    
+    vfree(delete);
+}
+
+static void prune_processes(void) {
+    struct task_struct *p;
+    struct lf_process *delete = head;
+    char found = 0;
+    
+    while (delete != NULL) {
+        for_each_process(p) {
+            if (delete->pid == p->tgid) {
+                found = 1;
+                break;
+            }
+        }
+        if (!found) {
+            struct lf_process *temp = delete;
+            printk("deleting dead process tgid: %d\n", delete->pid);
+            delete = delete->next;
+            free_process(remove_process(temp->pid));
+            found = 0;
+        }
+        else {
+            delete = delete->next;
+        }
+    }
+}
+
 static void add_process(struct lf_process *new_process) {
     int i;
+    struct lf_process *delete;
     mutex_lock(&process_mutex);
-    remove_process(new_process->pid);
+    if ((delete = remove_process(new_process->pid))) {
+        free_process(delete);
+    }
+    prune_processes();
     new_process->next = head;
     head = new_process;
     
@@ -138,8 +178,6 @@ static int seed(unsigned long long iseed, int count_parent) {
     pos = NULL;
     new_process->mult_n = MULTIPLIER;
     //iseed = 0;
-
-    new_process->mult_n = MULTIPLIER;
     // begin greg
     if (count_parent)
     {
@@ -180,7 +218,6 @@ static int proc_read_lfprng(char *page, char **start,
     //unsigned long long random_next;
     struct lf_thread* thread;
     struct lf_process* process;
-    char temp_string[1000];
     unsigned long long old_val;
     //double return_val = 0.f;
 
@@ -221,7 +258,7 @@ static int proc_read_lfprng(char *page, char **start,
     //len = sprintf(temp_string, "module prints %llu", thread->random_last
     len = sprintf(page, "%llu", old_val);
     
-    return len;
+    return len + 1;
 }
 
 static int proc_write_lfprng(struct file *file,
