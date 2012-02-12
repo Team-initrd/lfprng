@@ -131,15 +131,20 @@ static int seed(unsigned long long iseed, int count_parent) {
     new_process->pid = current->tgid;
    
 
+    iseed = (unsigned long long)((MULTIPLIER * iseed) % PMOD);
+
+
     n = 0;
     pos = NULL;
     new_process->mult_n = MULTIPLIER;
     //iseed = 0;
+
+    new_process->mult_n = MULTIPLIER;
     // begin greg
     if (count_parent)
     {
         struct lf_thread *new_thread = vmalloc(sizeof(struct lf_thread));
-        new_process->mult_n = (new_process->mult_n * MULTIPLIER) % PMOD;
+        //new_process->mult_n = (new_process->mult_n * MULTIPLIER) % PMOD;
         new_thread->tid = new_process->pid;
         new_thread->random_last = iseed;
         (new_process->threads)[n] = new_thread;
@@ -151,9 +156,10 @@ static int seed(unsigned long long iseed, int count_parent) {
         struct lf_thread *new_thread = vmalloc(sizeof(struct lf_thread));
         struct task_struct *thread = list_entry(pos, struct task_struct, thread_group);
         if (n != 0) {
+            new_process->mult_n = (new_process->mult_n * MULTIPLIER) % PMOD;
             iseed = (unsigned long long)((MULTIPLIER * iseed) % PMOD);
         }
-        new_process->mult_n = (new_process->mult_n * MULTIPLIER) % PMOD;
+        //new_process->mult_n = (new_process->mult_n * MULTIPLIER) % PMOD;
         new_thread->tid = thread->pid;
         new_thread->random_last = iseed;
         (new_process->threads)[n] = new_thread;
@@ -175,6 +181,7 @@ static int proc_read_lfprng(char *page, char **start,
     struct lf_thread* thread;
     struct lf_process* process;
     char temp_string[1000];
+    unsigned long long old_val;
     //double return_val = 0.f;
 
     //printk(KERN_INFO "reading pid:%d tid:%d\n", current->tgid, current->pid);
@@ -204,13 +211,15 @@ static int proc_read_lfprng(char *page, char **start,
         printk("THREAD NOT FOUND THREAD NOT FOUND:::::: %d (TGID: %d)\n", current->pid, current->tgid);
         return 0;
     }
+
+    old_val = thread->random_last;
     if (off == 0)
         thread->random_last = (unsigned long long)((process->mult_n * thread->random_last) % PMOD);
     //double double_val = (double)(thread->random_last);
     //return_val = ((double)thread->random_last/(double)PMOD)*(process->random_hi - process->random_low) + process->random_low;
     //printk("tid: %d -outputting: llu:%llu\n", current->pid, thread->random_last);
     //len = sprintf(temp_string, "module prints %llu", thread->random_last
-    len = sprintf(page, "%llu", thread->random_last);
+    len = sprintf(page, "%llu", old_val);
     
     return len;
 }
@@ -241,7 +250,7 @@ static int proc_write_lfprng(struct file *file,
     ((char*)temp)[len] = '\0'; 
     
     sscanf((const char*)temp, "%llu %d", &iseed, &count_parent);
-    printk("read iseed: %llu\n", iseed); 
+    printk("read iseed: %llu\n count_parent:%d", iseed, count_parent); 
     //num_threads = 0; //current->group_leader->signal->nr_threads; //get_nr_threads(current->group_leader);
     
     num_threads = seed(iseed, count_parent);

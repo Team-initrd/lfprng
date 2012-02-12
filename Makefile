@@ -22,3 +22,8 @@ threadread : threadread.c
 
 tester : tester.c
 	gcc -o tester -fopenmp tester.c
+
+
+pthreadtest : pthreadtest.c
+	gcc -o pthreadtest -lpthread pthreadtest.c
+
