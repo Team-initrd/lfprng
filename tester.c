@@ -123,29 +123,29 @@ void seed(unsigned long long iseed, double low_in, double hi_in)
 int tests[6]={2,3,4,5,6,10};
 
 int main(int argc, char **argv) {
-  double baseref[120];
-  double testref[120];
+  unsigned long long baseref[120];
+  unsigned long long testref[120];
   unsigned long long myseed = 123456789, setseed;
   int i, j;
   FILE *fp;
-  double myrand;
+  unsigned long long myrand;
   
   setseed=myseed;
   //seed(setseed, 0.0, 1.1);
-//  fp = fopen(FILE_PATH, "w");
-//  fprintf(fp, "%d 0.0 1.1 1", setseed);
+  fp = fopen(FILE_PATH, "w");
+  fprintf(fp, "%d 1", setseed);
   //printf("%d 0.0 1.1 1\n", setseed);
-//  fclose(fp);
+  fclose(fp);
   
   for (i=0; i<120; i++) {
     fp = fopen(FILE_PATH, "r");
-    fscanf(fp, "%f", &myrand);
+    fscanf(fp, "%llu", &myrand);
     fclose(fp);
     
     baseref[i] = myrand; //myrandom();
-    printf("%f\n", myrand);
+    printf("%llu\n", myrand);
   }
-/*
+
   for (j=0; j<6; j++) {
     int numthreads = tests[j];
     double sum;
@@ -153,26 +153,45 @@ int main(int argc, char **argv) {
     omp_set_num_threads(numthreads);
     sum = 0;
 
+    //printf("NUM THREADS: %d\n", omp_get_num_threads());
+
+
+#pragma omp parallel
+{
+    printf("parallel time\n");
+}
+    setseed=myseed;
+    //seed(setseed,0.0,1.0);
+    fp = fopen(FILE_PATH, "w");
+    fprintf(fp, "%d 1", setseed);
+    fclose(fp);
+
 #pragma omp parallel private(fp, myrand) reduction(+:sum)
     {
+      printf("NUM THREADS: %d\n", omp_get_num_threads());
       setseed=myseed;
+      #pragma omp barrier
       //seed(setseed,0.0,1.0);
-      fp = fopen(FILE_PATH, "w");
-      fprintf(fp, "%d 0.0 1.0 1", setseed);
-      fclose(fp);
-      
+      //#pragma omp single
+      if (0 && omp_get_thread_num() == numthreads - 2)
+      {
+        fp = fopen(FILE_PATH, "w");
+        fprintf(fp, "%d 1", setseed);
+        fclose(fp);
+      }
+      #pragma omp barrier
 #pragma omp for
       for (i=0; i<120; i++) {
         fp = fopen(FILE_PATH, "r");
-        fscanf(fp, "%f", &myrand);
+        fscanf(fp, "%llu", &myrand);
         fclose(fp);
         
 	//sum += abs(myrand - baseref[i]);
 	sum += abs(myrand - baseref[i]);
       }
     }    
-    printf(" Diff for %i threads is %f.\n", numthreads, sum);
-    
-  }*/
+    printf(" Diff for %i threads is %llu.\n", numthreads, sum);
+
+  }
   printf("\n");
 }

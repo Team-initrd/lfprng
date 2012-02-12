@@ -40,12 +40,34 @@ struct lf_process {
 static struct lf_process *head;
 DEFINE_MUTEX(process_mutex);
 
+static struct lf_process* remove_process(int pid) {
+    struct lf_process *prev = head;
+    struct lf_process *remove;
+
+    if (head != NULL && head->pid == pid) {
+        head = head->next;
+        return prev;
+    }
+    while( prev != NULL && prev->next != NULL && prev->next->pid != pid) {
+        prev = prev->next;
+    }
+    if (prev != NULL && prev->next != NULL) {
+        remove = prev->next;
+        prev->next = remove->next;
+    }
+
+    return remove;
+}
+
 static void add_process(struct lf_process *new_process) {
     int i;
     mutex_lock(&process_mutex);
+    remove_process(new_process->pid);
     new_process->next = head;
     head = new_process;
     
+    //remove_process(new_process->pid);
+
     for (i = 0; i < new_process->num_threads; i++) {
         printk("2 - Adding thread tid:%d\n", new_process->threads[i]->tid);
     }
@@ -88,7 +110,7 @@ static struct lf_thread* find_thread(struct lf_process* process, int tid) {
  //for (i = 0; i < off; i
  }*/
 
-static void seed(unsigned long long iseed, int count_parent) {
+static int seed(unsigned long long iseed, int count_parent) {
     int num_threads = 0;
     struct lf_process *new_process;
     struct list_head *pos, *siblings;
@@ -96,13 +118,14 @@ static void seed(unsigned long long iseed, int count_parent) {
     
     new_process = vmalloc(sizeof(struct lf_process));
     
-    siblings = &(current->thread_group);//&current->sibling; // maybe use current->sibling
+    siblings = &(current->thread_group);//&(current->thread_group);//&current->sibling; // maybe use current->sibling
     list_for_each(pos, siblings) {
         num_threads++;
     }
     // begin greg
     if (count_parent) {num_threads++;}
     // end greg
+    printk("SEEDING NUM THREADS: %d\n", num_threads);
     new_process->threads = vmalloc(num_threads * sizeof(struct lf_thread *));
     new_process->num_threads = num_threads;
     new_process->pid = current->tgid;
@@ -139,6 +162,8 @@ static void seed(unsigned long long iseed, int count_parent) {
     }
     
     add_process(new_process);
+
+    return num_threads;
 }
 
 static int proc_read_lfprng(char *page, char **start,
@@ -152,7 +177,7 @@ static int proc_read_lfprng(char *page, char **start,
     char temp_string[1000];
     //double return_val = 0.f;
 
-    printk(KERN_INFO "reading pid:%d tid:%d\n", current->tgid, current->pid);
+    //printk(KERN_INFO "reading pid:%d tid:%d\n", current->tgid, current->pid);
     /*if (data == NULL) {
      strcpy(page,"null\n");
      return strlen("null\n") + 1;
@@ -175,13 +200,15 @@ static int proc_read_lfprng(char *page, char **start,
         process = find_process(current->tgid);
     }
     thread = find_thread(process, current->pid);
-    if (thread == NULL)
+    if (thread == NULL) {
+        printk("THREAD NOT FOUND THREAD NOT FOUND:::::: %d (TGID: %d)\n", current->pid, current->tgid);
         return 0;
+    }
     if (off == 0)
         thread->random_last = (unsigned long long)((process->mult_n * thread->random_last) % PMOD);
     //double double_val = (double)(thread->random_last);
     //return_val = ((double)thread->random_last/(double)PMOD)*(process->random_hi - process->random_low) + process->random_low;
-    printk("tid: %d -outputting: llu:%llu\n", current->pid, thread->random_last);
+    //printk("tid: %d -outputting: llu:%llu\n", current->pid, thread->random_last);
     //len = sprintf(temp_string, "module prints %llu", thread->random_last
     len = sprintf(page, "%llu", thread->random_last);
     
@@ -202,6 +229,7 @@ static int proc_write_lfprng(struct file *file,
     //struct list_head *pos, *siblings;
     char temp[1000];
     int count_parent = 0;
+    int num_threads;
     //new_process = vmalloc(sizeof(new_process));
     printk(KERN_INFO "writing\n");
     len = count;
@@ -216,8 +244,10 @@ static int proc_write_lfprng(struct file *file,
     printk("read iseed: %llu\n", iseed); 
     //num_threads = 0; //current->group_leader->signal->nr_threads; //get_nr_threads(current->group_leader);
     
-    seed(iseed, count_parent);
+    num_threads = seed(iseed, count_parent);
     
+    printk("SEEDED FOR %d THREADS\n", num_threads);
+
     return len;
 }
 
