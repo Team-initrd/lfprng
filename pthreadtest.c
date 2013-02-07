@@ -103,7 +103,7 @@ int main(int argc, char *argv[])
 
 
     fp = fopen(FILE_PATH, "w");
-    fprintf(fp, "12345 0", seed);
+    fprintf(fp, "12345 6", seed);
     fclose(fp);
 
 	/*if (!(fp = fopen(FILE_PATH, "w")))
